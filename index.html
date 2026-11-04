@@ -52,8 +52,16 @@ label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
 <div id="login">
   <h1>Compilado de Prenhez</h1>
   <p style="color:var(--mut);margin:0">Acesso restrito</p>
-  <button class="btn" id="btnLogin">Entrar com Google</button>
-  <div class="msg" id="loginMsg"></div>
+  <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px">
+    <input type="email" id="lgEmail" placeholder="E-mail" autocomplete="username">
+    <input type="password" id="lgPass" placeholder="Senha (mín. 6 caracteres)" autocomplete="current-password">
+    <button class="btn" id="btnEmailLogin">Entrar</button>
+    <button class="btn sec" id="btnSignup">Criar conta (primeiro acesso)</button>
+    <button class="btn sec" id="btnReset" style="border:0;font-size:12px;padding:4px">Esqueci a senha</button>
+    <div style="color:var(--mut);font-size:12px">ou</div>
+    <button class="btn sec" id="btnLogin">Entrar com Google</button>
+  </div>
+  <div class="msg" id="loginMsg" style="max-width:320px"></div>
 </div>
 
 <div id="app" class="hide">
@@ -126,7 +134,8 @@ label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, writeBatch, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ====== COLE AQUI A CONFIG DO SEU PROJETO FIREBASE ======
@@ -168,21 +177,79 @@ const GUESS = {
 };
 
 // ---------- AUTH ----------
+let busy = false;
+const msg = (t, ok=false) => { $("loginMsg").textContent = t; $("loginMsg").style.color = ok ? "var(--ok)" : "var(--bad)"; };
+const authErr = e => ({
+  "auth/invalid-credential":"E-mail ou senha incorretos.",
+  "auth/wrong-password":"E-mail ou senha incorretos.",
+  "auth/user-not-found":"E-mail ou senha incorretos.",
+  "auth/email-already-in-use":"Este e-mail já tem conta. Entre com a senha, com o Google, ou use “Esqueci a senha”.",
+  "auth/weak-password":"A senha precisa ter pelo menos 6 caracteres.",
+  "auth/invalid-email":"E-mail inválido.",
+  "auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos.",
+  "auth/operation-not-allowed":"Ative o login por E-mail/Senha no Firebase (Authentication → Método de login)."
+}[e.code] || ("Erro: " + e.message));
+const creds = () => ({ email: $("lgEmail").value.trim().toLowerCase(), pass: $("lgPass").value });
+
 $("btnLogin").onclick = async () => {
-  $("loginMsg").textContent = "";
+  msg("");
   try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  catch(e){ $("loginMsg").textContent = "Erro ao entrar: " + e.message; }
+  catch(e){ msg(authErr(e)); }
+};
+$("btnEmailLogin").onclick = async () => {
+  msg("");
+  const { email, pass } = creds();
+  if (!email || !pass) return msg("Preencha e-mail e senha.");
+  if (email !== ALLOWED_EMAIL) return msg("Este e-mail não tem acesso.");
+  busy = true;
+  try {
+    const c = await signInWithEmailAndPassword(auth, email, pass);
+    if (!c.user.emailVerified) {
+      await sendEmailVerification(c.user); await signOut(auth);
+      busy = false; return msg("E-mail ainda não confirmado. Reenviamos o link; clique nele (veja o spam) e entre de novo.");
+    }
+  } catch(e){ busy = false; return msg(authErr(e)); }
+  busy = false;
+  handleUser(auth.currentUser);
+};
+$("btnSignup").onclick = async () => {
+  msg("");
+  const { email, pass } = creds();
+  if (!email || !pass) return msg("Preencha e-mail e senha.");
+  if (email !== ALLOWED_EMAIL) return msg("Este e-mail não tem acesso.");
+  if (pass.length < 6) return msg("A senha precisa ter pelo menos 6 caracteres.");
+  busy = true;
+  try {
+    const c = await createUserWithEmailAndPassword(auth, email, pass);
+    await sendEmailVerification(c.user);
+    await signOut(auth);
+    msg("Conta criada. Enviamos um link de confirmação para " + email + ". Clique nele (veja o spam) e depois entre.", true);
+  } catch(e){ msg(authErr(e)); }
+  busy = false;
+};
+$("btnReset").onclick = async () => {
+  msg("");
+  const { email } = creds();
+  if (email !== ALLOWED_EMAIL) return msg("Digite o e-mail de acesso no campo acima.");
+  try { await sendPasswordResetEmail(auth, email); msg("Enviamos o link para redefinir a senha em " + email + ".", true); }
+  catch(e){ msg(authErr(e)); }
 };
 $("btnOut").onclick = () => signOut(auth);
-onAuthStateChanged(auth, async u => {
-  if (u && u.email === ALLOWED_EMAIL) {
+
+async function handleUser(u){
+  if (u && u.email === ALLOWED_EMAIL && u.emailVerified) {
     $("login").classList.add("hide"); $("app").classList.remove("hide");
     loadHist();
   } else {
-    if (u) { await signOut(auth); $("loginMsg").textContent = "Este e-mail não tem acesso."; }
+    if (u) {
+      const unverified = u.email === ALLOWED_EMAIL && !u.emailVerified;
+      await signOut(auth);
+      msg(unverified ? "Confirme seu e-mail pelo link que enviamos e entre de novo." : "Este e-mail não tem acesso.");
+    }
     $("login").classList.remove("hide"); $("app").classList.add("hide");
   }
-});
+}
+onAuthStateChanged(auth, u => { if (!busy) handleUser(u); });
 
 // ---------- IMPORTAR ----------
 $("btnImport").onclick = () => $("file").click();
