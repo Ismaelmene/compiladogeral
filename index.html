@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compilado de Prenhez</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--bg:#0f1a14;--card:#16251c;--line:#24382c;--txt:#e8f1ea;--mut:#8fa898;--ok:#4cc27a;--warn:#e0b341;--bad:#e06a5a;--blue:#4c9fe0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.btn{background:var(--ok);color:#062312;border:0;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px}
+.btn.sec{background:transparent;color:var(--txt);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.grid{display:grid;gap:12px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi b{display:block;font-size:28px;margin-top:4px}
+.kpi span{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.charts{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.chartbox{height:300px;position:relative}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--card)}
+.scroll{max-height:420px;overflow:auto}
+select,input{background:#0c140f;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:8px;font-size:14px;width:100%}
+label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
+.map{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.hide{display:none!important}
+#login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:14px;text-align:center;padding:20px}
+.msg{color:var(--bad);font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pill{padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600}
+.p-ok{background:#16452b;color:var(--ok)}.p-bad{background:#4a1f1a;color:var(--bad)}
+.hist{display:flex;gap:8px;flex-wrap:wrap}
+.hist button{font-size:12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:transparent;color:var(--txt);border:1px solid var(--line);border-radius:99px;padding:6px 12px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--ok);color:#062312;border-color:var(--ok);font-weight:700}
+.fgrid{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>Compilado de Prenhez</h1>
+  <p style="color:var(--mut);margin:0">Acesso restrito</p>
+  <button class="btn" id="btnLogin">Entrar com Google</button>
+  <div class="msg" id="loginMsg"></div>
+</div>
+
+<div id="app" class="hide">
+<header>
+  <h1>🐄 Compilado de Prenhez</h1>
+  <div class="row">
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
+    <button class="btn" id="btnImport">Importar planilha</button>
+    <button class="btn sec" id="btnSave" disabled>Salvar no Firebase</button>
+    <button class="btn sec" id="btnPdf" disabled>Gerar PDF (filtros atuais)</button>
+    <button class="btn sec" id="btnPdfCat" disabled>PDF por categoria</button>
+    <button class="btn sec" id="btnOut">Sair</button>
+  </div>
+</header>
+
+<main>
+  <div class="card hide" id="mapCard">
+    <h3 style="margin-top:0">Confirme as colunas da planilha</h3>
+    <div class="grid map" id="mapGrid"></div>
+    <div class="row" style="margin-top:14px">
+      <div style="width:200px"><label>Gestação em que unidade?</label>
+        <select id="igUnit"><option value="dias">Dias</option><option value="meses">Meses</option><option value="semanas">Semanas</option></select></div>
+      <div style="width:200px"><label>Dias de gestação (parto)</label><input type="number" id="gestDays" value="283"></div>
+      <button class="btn" id="btnProcess" style="margin-top:18px">Processar</button>
+    </div>
+  </div>
+
+  <div class="card" id="histCard">
+    <b>Importações salvas</b>
+    <div class="hist" id="hist" style="margin-top:10px"><span style="color:var(--mut)">Carregando…</span></div>
+  </div>
+
+  <div id="dash" class="hide">
+    <div class="card" id="filters">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <b>Filtros</b>
+        <div class="row">
+          <span id="cnt" style="color:var(--mut);font-size:13px"></span>
+          <button class="btn sec" id="btnClear" style="padding:6px 12px">Limpar filtros</button>
+        </div>
+      </div>
+      <label>Categorias (clique para escolher uma ou mais)</label>
+      <div class="chips" id="chips"></div>
+      <div class="grid fgrid" style="margin-top:14px">
+        <div><label>Situação</label>
+          <select id="fSit"><option value="">Todas</option><option value="p">Prenhes</option><option value="v">Vazias</option></select></div>
+        <div><label>Idade gestacional</label><select id="fFaixa"></select></div>
+        <div><label>Mês do parto previsto</label><select id="fMes"></select></div>
+        <div><label>Auditoria de</label><input type="date" id="fDe"></div>
+        <div><label>Auditoria até</label><input type="date" id="fAte"></div>
+        <div><label>Buscar brinco</label><input type="text" id="fQ" placeholder="Nº do brinco"></div>
+      </div>
+      <div style="color:var(--mut);font-size:12px;margin-top:10px" id="srcName"></div>
+    </div>
+
+    <div class="grid kpis" id="kpis"></div>
+    <div class="grid charts" style="margin-top:16px">
+      <div class="card"><b>Prenhes x Vazias</b><div class="chartbox"><canvas id="c1"></canvas></div></div>
+      <div class="card"><b>Partos previstos por mês</b><div class="chartbox"><canvas id="c2"></canvas></div></div>
+      <div class="card"><b>Idade gestacional (faixas)</b><div class="chartbox"><canvas id="c3"></canvas></div></div>
+      <div class="card"><b>Prenhez por categoria</b><div class="chartbox"><canvas id="c4"></canvas></div></div>
+    </div>
+    <div class="card"><b>Partos previstos por mês</b>
+      <div class="scroll"><table id="tMes"></table></div></div>
+    <div class="card"><b>Animais</b>
+      <div class="scroll"><table id="tAni"></table></div></div>
+  </div>
+</main>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, writeBatch, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ====== COLE AQUI A CONFIG DO SEU PROJETO FIREBASE ======
+const firebaseConfig = {
+  apiKey: "AIzaSyCLkHlpAV-vu89HhuQFh12VUEuR7UdTkAw",
+  authDomain: "compiladogeral-83eb2.firebaseapp.com",
+  projectId: "compiladogeral-83eb2",
+  storageBucket: "compiladogeral-83eb2.firebasestorage.app",
+  messagingSenderId: "37859816615",
+  appId: "1:37859816615:web:c3c37e787145e7e8841782"
+};
+const ALLOWED_EMAIL = "menezesapptec@gmail.com";
+// ========================================================
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let rawRows = [], headers = [], fileName = "", animais = [], charts = {};
+const FIELDS = [
+  ["brinco","Brinco / Identificação"],
+  ["categoria","Categoria (vaca, novilha…)"],
+  ["dataAud","Data da auditoria"],
+  ["resultado","Resultado (prenhe/vazia)"],
+  ["dataCob","Data cobertura / IA"],
+  ["ig","Idade gestacional"],
+  ["dataParto","Data de parto (se já tiver)"]
+];
+const GUESS = {
+  brinco:["brinco","identific","numero","número","animal","id"],
+  categoria:["categ","lote","tipo"],
+  dataAud:["data aud","audit","data do diag","data diag","data"],
+  resultado:["result","diagn","prenh","gest","situa","status"],
+  dataCob:["cobert","inseminacao","inseminação","data ia","ia ","monta"],
+  ig:["idade gest","tempo gest","meses","dias gest","gestac","gestaç"],
+  dataParto:["parto","nascimento","previs"]
+};
+
+// ---------- AUTH ----------
+$("btnLogin").onclick = async () => {
+  $("loginMsg").textContent = "";
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch(e){ $("loginMsg").textContent = "Erro ao entrar: " + e.message; }
+};
+$("btnOut").onclick = () => signOut(auth);
+onAuthStateChanged(auth, async u => {
+  if (u && u.email === ALLOWED_EMAIL) {
+    $("login").classList.add("hide"); $("app").classList.remove("hide");
+    loadHist();
+  } else {
+    if (u) { await signOut(auth); $("loginMsg").textContent = "Este e-mail não tem acesso."; }
+    $("login").classList.remove("hide"); $("app").classList.add("hide");
+  }
+});
+
+// ---------- IMPORTAR ----------
+$("btnImport").onclick = () => $("file").click();
+$("file").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  fileName = f.name;
+  const wb = XLSX.read(await f.arrayBuffer(), { cellDates:true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = XLSX.utils.sheet_to_json(ws, { header:1, defval:"", raw:true });
+  let hi = aoa.findIndex(r => r.filter(c => String(c).trim() !== "").length >= 3);
+  if (hi < 0) hi = 0;
+  headers = aoa[hi].map((h,i) => String(h).trim() || ("Coluna " + (i+1)));
+  rawRows = aoa.slice(hi+1).filter(r => r.some(c => String(c).trim() !== ""));
+  buildMap();
+  $("mapCard").classList.remove("hide");
+  e.target.value = "";
+};
+function buildMap(){
+  const g = $("mapGrid"); g.innerHTML = "";
+  FIELDS.forEach(([k,label]) => {
+    const guess = headers.findIndex(h => GUESS[k].some(w => h.toLowerCase().includes(w)));
+    const opts = '<option value="-1">— não tem —</option>' + headers.map((h,i)=>`<option value="${i}" ${i===guess?"selected":""}>${esc(h)}</option>`).join("");
+    g.insertAdjacentHTML("beforeend", `<div><label>${label}</label><select id="m_${k}">${opts}</select></div>`);
+  });
+}
+
+// ---------- PARSE ----------
+const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
+function toDate(v){
+  if (v instanceof Date && !isNaN(v)) return v;
+  if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Math.round((v-25569)*86400000));
+  const s = String(v).trim(); if (!s) return null;
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (m){ let y=+m[3]; if(y<100)y+=2000; return new Date(y,+m[2]-1,+m[1]); }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1],+m[2]-1,+m[3]);
+  return null;
+}
+function isPren(v){
+  const s = norm(v); if (!s) return null;
+  if (/^(p|sim|s|pos|positivo|pren|gest)/.test(s) && !/^(nao|neg)/.test(s)) return true;
+  if (/^(v|nao|n|neg|negativo|vaz|falha)/.test(s)) return false;
+  return null;
+}
+const addDays = (d,n) => new Date(d.getTime() + n*86400000);
+const diffDays = (a,b) => Math.round((a-b)/86400000);
+const fmt = d => d ? d.toLocaleDateString("pt-BR") : "";
+
+$("btnProcess").onclick = () => {
+  const col = {}; FIELDS.forEach(([k]) => col[k] = +$("m_"+k).value);
+  const unit = $("igUnit").value, GD = +$("gestDays").value || 283;
+  const mult = unit==="meses" ? 30.4 : unit==="semanas" ? 7 : 1;
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const list = rawRows.map(r => {
+    const get = k => col[k] >= 0 ? r[col[k]] : "";
+    const dAud = toDate(get("dataAud")) || hoje;
+    const dCob = toDate(get("dataCob"));
+    const igRaw = parseFloat(String(get("ig")).replace(",","."));
+    let pren = isPren(get("resultado"));
+    let igDias = null, parto = toDate(get("dataParto"));
+    if (dCob) igDias = diffDays(dAud, dCob);
+    else if (!isNaN(igRaw)) igDias = Math.round(igRaw * mult);
+    if (pren === null) pren = (igDias !== null && igDias > 0) || !!parto;
+    if (pren){
+      if (igDias !== null && !parto) parto = addDays(dAud, GD - igDias);
+      if (igDias === null && parto) igDias = GD - diffDays(parto, dAud);
+    } else { igDias = null; parto = null; }
+    return {
+      brinco: String(get("brinco")).trim(),
+      categoria: String(get("categoria")).trim() || "Sem categoria",
+      dataAud: dAud.getTime(), prenha: pren,
+      igDias, parto: parto ? parto.getTime() : null
+    };
+  }).filter(a => a.brinco !== "" || a.prenha);
+  showDash(list, fileName);
+  $("mapCard").classList.add("hide");
+  $("btnSave").disabled = false; $("btnPdf").disabled = false; $("btnPdfCat").disabled = false;
+};
+
+// ---------- FILTROS ----------
+const FAIXAS = ["0–90 d","91–180 d","181–240 d","241+ d"];
+const faixaDe = x => x<=90 ? FAIXAS[0] : x<=180 ? FAIXAS[1] : x<=240 ? FAIXAS[2] : FAIXAS[3];
+const mesKey = ts => { const d = new Date(ts); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
+const mesLabel = k => { const [y,m]=k.split("-"); return ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][+m-1]+"/"+y.slice(2); };
+const F = { cats:new Set(), sit:"", faixa:"", mes:"", de:"", ate:"", q:"" };
+
+function filtered(){
+  const q = norm(F.q);
+  const de = F.de ? new Date(F.de+"T00:00:00").getTime() : null;
+  const ate = F.ate ? new Date(F.ate+"T23:59:59").getTime() : null;
+  return animais.filter(a => {
+    if (F.cats.size && !F.cats.has(a.categoria)) return false;
+    if (F.sit === "p" && !a.prenha) return false;
+    if (F.sit === "v" && a.prenha) return false;
+    if (F.faixa && (a.igDias === null || faixaDe(a.igDias) !== F.faixa)) return false;
+    if (F.mes && (!a.parto || mesKey(a.parto) !== F.mes)) return false;
+    if (de !== null && a.dataAud < de) return false;
+    if (ate !== null && a.dataAud > ate) return false;
+    if (q && !norm(a.brinco).includes(q)) return false;
+    return true;
+  });
+}
+function filterText(){
+  const p = [];
+  if (F.cats.size) p.push("Categorias: " + [...F.cats].join(", "));
+  if (F.sit) p.push("Situação: " + (F.sit==="p" ? "Prenhes" : "Vazias"));
+  if (F.faixa) p.push("Gestação: " + F.faixa);
+  if (F.mes) p.push("Parto previsto: " + mesLabel(F.mes));
+  if (F.de) p.push("Auditoria de " + F.de.split("-").reverse().join("/"));
+  if (F.ate) p.push("Auditoria até " + F.ate.split("-").reverse().join("/"));
+  if (F.q) p.push("Brinco: " + F.q);
+  return p.length ? "Filtros: " + p.join(" · ") : "Sem filtros (todos os animais)";
+}
+function buildChips(){
+  const cats = [...new Set(animais.map(a=>a.categoria))].sort();
+  const box = $("chips"); box.innerHTML = "";
+  const mk = (txt, on, fn) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip" + (on ? " on" : ""); b.textContent = txt; b.onclick = fn;
+    box.appendChild(b);
+  };
+  mk("Todas", F.cats.size === 0, () => { F.cats.clear(); buildChips(); render(); });
+  cats.forEach(c => {
+    const n = animais.filter(a=>a.categoria===c).length;
+    mk(`${c} (${n})`, F.cats.has(c), () => { F.cats.has(c) ? F.cats.delete(c) : F.cats.add(c); buildChips(); render(); });
+  });
+}
+function buildFilters(){
+  Object.assign(F, { cats:new Set(), sit:"", faixa:"", mes:"", de:"", ate:"", q:"" });
+  $("fSit").value = ""; $("fDe").value = ""; $("fAte").value = ""; $("fQ").value = "";
+  $("fFaixa").innerHTML = '<option value="">Todas</option>' + FAIXAS.map(f=>`<option>${f}</option>`).join("");
+  const meses = [...new Set(animais.filter(a=>a.parto).map(a=>mesKey(a.parto)))].sort();
+  $("fMes").innerHTML = '<option value="">Todos</option>' + meses.map(k=>`<option value="${k}">${mesLabel(k)}</option>`).join("");
+  buildChips();
+}
+[["fSit","sit"],["fFaixa","faixa"],["fMes","mes"],["fDe","de"],["fAte","ate"],["fQ","q"]].forEach(([id,k]) => {
+  $(id).addEventListener(id==="fQ" ? "input" : "change", e => { F[k] = e.target.value; render(); });
+});
+$("btnClear").onclick = () => { buildFilters(); render(); };
+
+// ---------- DASHBOARD ----------
+function showDash(list, name){
+  animais = list;
+  $("dash").classList.remove("hide");
+  $("srcName").textContent = name ? "Origem: " + name : "";
+  buildFilters();
+  render();
+}
+function stats(list){
+  const pren = list.filter(a=>a.prenha), vaz = list.length - pren.length;
+  const igs = pren.filter(a=>a.igDias!==null).map(a=>a.igDias);
+  const media = igs.length ? Math.round(igs.reduce((s,x)=>s+x,0)/igs.length) : 0;
+  const meses = {};
+  pren.filter(a=>a.parto).forEach(a => { const k = mesKey(a.parto); meses[k] = (meses[k]||0)+1; });
+  const mk = Object.keys(meses).sort();
+  const faixas = {}; FAIXAS.forEach(f => faixas[f] = 0);
+  igs.forEach(x => faixas[faixaDe(x)]++);
+  const cat = {};
+  list.forEach(a => { cat[a.categoria] = cat[a.categoria]||{p:0,v:0}; a.prenha ? cat[a.categoria].p++ : cat[a.categoria].v++; });
+  const proximo = pren.filter(a=>a.parto && a.parto>=Date.now()).sort((a,b)=>a.parto-b.parto)[0];
+  return { total:list.length, pren:pren.length, vaz, taxa: list.length ? (pren.length/list.length*100) : 0, media, meses, mk, faixas, cat, proximo };
+}
+function makeChart(canvas, kind, s, base, plugins = []){
+  const noLeg = { ...base, plugins:{ legend:{ display:false } } };
+  if (kind === "c1") return new Chart(canvas, { type:"doughnut", plugins,
+    data:{ labels:["Prenhes","Vazias"], datasets:[{ data:[s.pren,s.vaz], backgroundColor:["#4cc27a","#e06a5a"] }] }, options:base });
+  if (kind === "c2") return new Chart(canvas, { type:"bar", plugins,
+    data:{ labels:s.mk.map(mesLabel), datasets:[{ label:"Partos", data:s.mk.map(k=>s.meses[k]), backgroundColor:"#4c9fe0" }] }, options:noLeg });
+  if (kind === "c3") return new Chart(canvas, { type:"bar", plugins,
+    data:{ labels:Object.keys(s.faixas), datasets:[{ label:"Vacas", data:Object.values(s.faixas), backgroundColor:"#e0b341" }] }, options:noLeg });
+  const cn = Object.keys(s.cat);
+  return new Chart(canvas, { type:"bar", plugins,
+    data:{ labels:cn, datasets:[
+      { label:"Prenhes", data:cn.map(c=>s.cat[c].p), backgroundColor:"#4cc27a" },
+      { label:"Vazias", data:cn.map(c=>s.cat[c].v), backgroundColor:"#e06a5a" } ] },
+    options:{ ...base, scales:{ x:{stacked:true}, y:{stacked:true} } } });
+}
+
+function render(){
+  const list = filtered(), s = stats(list);
+  $("cnt").textContent = `Mostrando ${list.length} de ${animais.length} animais`;
+  $("kpis").innerHTML = [
+    ["Total", s.total], ["Prenhes", s.pren], ["Vazias", s.vaz],
+    ["Taxa de prenhez", s.taxa.toFixed(1)+"%"], ["Gestação média", s.media+" dias"],
+    ["Próximo parto", s.proximo ? fmt(new Date(s.proximo.parto)) : "—"]
+  ].map(([l,v])=>`<div class="kpi"><span>${l}</span><b>${v}</b></div>`).join("");
+
+  Object.values(charts).forEach(c=>c.destroy()); charts = {};
+  Chart.defaults.color = "#cfe0d4";
+  const base = { responsive:true, maintainAspectRatio:false, animation:false };
+  ["c1","c2","c3","c4"].forEach(k => charts[k] = makeChart($(k), k, s, base));
+
+  $("tMes").innerHTML = "<tr><th>Mês</th><th>Partos previstos</th></tr>" + (s.mk.length ? s.mk.map(k=>`<tr><td>${mesLabel(k)}</td><td>${s.meses[k]}</td></tr>`).join("") : '<tr><td colspan="2">Sem datas de parto</td></tr>');
+  $("tAni").innerHTML = "<tr><th>Brinco</th><th>Categoria</th><th>Situação</th><th>Gestação (dias)</th><th>Parto previsto</th></tr>" +
+    list.map(a=>`<tr><td>${esc(a.brinco)}</td><td>${esc(a.categoria)}</td><td><span class="pill ${a.prenha?"p-ok":"p-bad"}">${a.prenha?"Prenhe":"Vazia"}</span></td><td>${a.igDias ?? ""}</td><td>${fmt(a.parto?new Date(a.parto):null)}</td></tr>`).join("");
+}
+
+// ---------- FIREBASE ----------
+$("btnSave").onclick = async () => {
+  if (!animais.length) return;
+  $("btnSave").disabled = true; $("btnSave").textContent = "Salvando…";
+  try {
+    const s = stats(animais);
+    const impRef = doc(collection(db, "importacoes"));
+    await writeBatch(db).set(impRef, {
+      arquivo: fileName, criadoEm: serverTimestamp(),
+      total: s.total, prenhes: s.pren, vazias: s.vaz
+    }).commit();
+    for (let i = 0; i < animais.length; i += 450) {
+      const b = writeBatch(db);
+      animais.slice(i, i+450).forEach(a => b.set(doc(collection(impRef, "animais")), a));
+      await b.commit();
+    }
+    alert("Salvo com sucesso.");
+    loadHist();
+  } catch(e){ alert("Erro ao salvar: " + e.message); }
+  $("btnSave").textContent = "Salvar no Firebase"; $("btnSave").disabled = false;
+};
+async function loadHist(){
+  try {
+    const snap = await getDocs(query(collection(db,"importacoes"), orderBy("criadoEm","desc")));
+    const h = $("hist"); h.innerHTML = "";
+    if (snap.empty){ h.innerHTML = '<span style="color:var(--mut)">Nenhuma importação salva ainda.</span>'; return; }
+    snap.forEach(d => {
+      const x = d.data(), dt = x.criadoEm ? x.criadoEm.toDate().toLocaleDateString("pt-BR") : "";
+      const bt = document.createElement("button"); bt.className = "btn sec";
+      bt.textContent = `${x.arquivo || "Importação"} · ${dt} · ${x.total} animais`;
+      bt.onclick = async () => {
+        const as = await getDocs(collection(db,"importacoes",d.id,"animais"));
+        fileName = x.arquivo || ""; showDash(as.docs.map(z=>z.data()), fileName);
+        $("btnPdf").disabled = false; $("btnPdfCat").disabled = false; $("btnSave").disabled = true;
+      };
+      h.appendChild(bt);
+    });
+  } catch(e){ $("hist").innerHTML = '<span class="msg">Erro ao carregar: '+e.message+'</span>'; }
+}
+
+// ---------- PDF ----------
+// gráficos desenhados fora da tela, com fundo branco, para qualquer lista de animais
+function chartImgs(list, kinds, wide){
+  const s = stats(list), out = {};
+  const prev = Chart.defaults.color; Chart.defaults.color = "#222";
+  const bg = { id:"bg", beforeDraw(c){ const x=c.ctx; x.save(); x.globalCompositeOperation="destination-over"; x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height); x.restore(); } };
+  kinds.forEach(k => {
+    const cv = document.createElement("canvas");
+    cv.width = k === wide ? 1320 : 640; cv.height = 450;
+    const ch = makeChart(cv, k, s, { responsive:false, animation:false, devicePixelRatio:1 }, [bg]);
+    out[k] = cv.toDataURL("image/png"); ch.destroy();
+  });
+  Chart.defaults.color = prev;
+  return out;
+}
+const PDF_TITLES = { c1:"Prenhes x Vazias", c2:"Partos previstos por mês", c3:"Idade gestacional (faixas)", c4:"Prenhez por categoria" };
+const GREEN = [30,110,70];
+
+function addSection(pdf, list, title, sub, kinds, first, wide){
+  const s = stats(list), W = pdf.internal.pageSize.getWidth();
+  if (!first) pdf.addPage();
+  pdf.setFontSize(18); pdf.setTextColor(0); pdf.text(title, 14, 16);
+  pdf.setFontSize(9); pdf.setTextColor(110);
+  const lines = pdf.splitTextToSize(sub, W-28); pdf.text(lines, 14, 22);
+  pdf.setTextColor(0);
+  pdf.autoTable({ startY: 22 + lines.length*4 + 2,
+    head:[["Total","Prenhes","Vazias","Taxa","Gestação média","Próximo parto"]],
+    body:[[s.total, s.pren, s.vaz, s.taxa.toFixed(1)+"%", s.media+" dias", s.proximo?fmt(new Date(s.proximo.parto)):"—"]],
+    headStyles:{ fillColor:GREEN } });
+  const y = pdf.lastAutoTable.finalY + 8;
+  const imgs = chartImgs(list, kinds, wide);
+  const w = (W-28-6)/2, h = 62;
+  kinds.forEach((k,i) => {
+    const full = k === wide;
+    const cx = full ? 14 : 14 + (i%2)*(w+6);
+    const cy = y + Math.floor(i/2)*(h+10);
+    pdf.setFontSize(10); pdf.text(PDF_TITLES[k], cx, cy);
+    pdf.addImage(imgs[k], "PNG", cx, cy+2, full ? W-28 : w, h);
+  });
+  pdf.addPage();
+  pdf.setFontSize(13); pdf.text("Partos previstos por mês — " + title, 14, 16);
+  pdf.autoTable({ startY:20, head:[["Mês","Partos previstos"]],
+    body: s.mk.length ? s.mk.map(k=>[mesLabel(k), s.meses[k]]) : [["Sem datas de parto",""]], headStyles:{ fillColor:GREEN } });
+  pdf.setFontSize(13); pdf.text("Animais — " + title, 14, pdf.lastAutoTable.finalY + 12);
+  pdf.autoTable({ startY: pdf.lastAutoTable.finalY + 16,
+    head:[["Brinco","Categoria","Situação","Gestação (dias)","Parto previsto"]],
+    body:list.map(a=>[a.brinco, a.categoria, a.prenha?"Prenhe":"Vazia", a.igDias ?? "", fmt(a.parto?new Date(a.parto):null)]),
+    styles:{ fontSize:8 }, headStyles:{ fillColor:GREEN } });
+}
+function pageNumbers(pdf){
+  const n = pdf.getNumberOfPages(), W = pdf.internal.pageSize.getWidth(), H = pdf.internal.pageSize.getHeight();
+  for (let i = 1; i <= n; i++){ pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(130); pdf.text(`Página ${i}/${n}`, W-14, H-8, { align:"right" }); }
+}
+const subtitle = () => `${fileName ? "Origem: "+fileName+" · " : ""}Gerado em ${new Date().toLocaleDateString("pt-BR")}\n${filterText()}`;
+
+$("btnPdf").onclick = () => {
+  const list = filtered();
+  if (!list.length) return alert("Nenhum animal nos filtros atuais.");
+  const pdf = new window.jspdf.jsPDF({ unit:"mm", format:"a4" });
+  addSection(pdf, list, "Compilado de Prenhez", subtitle(), ["c1","c2","c3","c4"], true);
+  pageNumbers(pdf);
+  pdf.save("compilado-prenhez.pdf");
+};
+$("btnPdfCat").onclick = () => {
+  const list = filtered();
+  if (!list.length) return alert("Nenhum animal nos filtros atuais.");
+  const pdf = new window.jspdf.jsPDF({ unit:"mm", format:"a4" });
+  addSection(pdf, list, "Compilado Geral", subtitle(), ["c1","c2","c3","c4"], true);
+  [...new Set(list.map(a=>a.categoria))].sort().forEach(c =>
+    addSection(pdf, list.filter(a=>a.categoria===c), "Categoria: " + c, subtitle(), ["c1","c3","c2"], false, "c2"));
+  pageNumbers(pdf);
+  pdf.save("compilado-prenhez-por-categoria.pdf");
+};
+</script>
+</body>
+</html>
