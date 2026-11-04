@@ -115,15 +115,12 @@ label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
             <option value="P2">P2 (4 a 6 meses)</option>
             <option value="P3">P3 (7 a 9 meses)</option>
           </select></div>
-        <div><label>Mês do parto previsto</label><select id="fMes"></select></div>
         <div><label>Local</label><select id="fLoc"></select></div>
         <div><label>Raça</label><select id="fRaca"></select></div>
         <div><label>Buscar brinco / ID</label><input type="text" id="fQ" placeholder="Ex.: 23P1212"></div>
       </div>
-      <div class="grid fgrid" style="margin-top:14px;align-items:end">
-        <div><label>Data da auditoria (base dos partos)</label><input type="date" id="pDate"></div>
-        <div><label>Dias de gestação</label><input type="number" id="pGest" value="283" min="250" max="320"></div>
-        <label class="chk" style="margin:0 0 8px"><input type="checkbox" id="pLista"> Incluir lista de animais no PDF</label>
+      <div style="margin-top:14px">
+        <label class="chk"><input type="checkbox" id="pLista"> Incluir lista de animais no PDF</label>
       </div>
       <div class="note" style="margin-top:10px" id="srcName"></div>
     </div>
@@ -131,7 +128,6 @@ label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
     <div class="grid kpis" id="kpis"></div>
     <div class="grid charts" style="margin-top:16px">
       <div class="card"><b>Diagnóstico gestacional</b><div class="chartbox"><canvas id="c1"></canvas></div></div>
-      <div class="card"><b>Partos previstos por mês</b><div class="chartbox"><canvas id="c2"></canvas></div></div>
       <div class="card"><b>Idade gestacional (meses)</b><div class="chartbox"><canvas id="c3"></canvas></div></div>
       <div class="card"><b>Prenhez por categoria</b><div class="chartbox"><canvas id="c4"></canvas></div></div>
       <div class="card"><b>Prenhez por local</b><div class="chartbox"><canvas id="c5"></canvas></div></div>
@@ -140,8 +136,6 @@ label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
       <div class="card"><b>Resumo por categoria</b><div class="scroll"><table id="tCat"></table></div></div>
       <div class="card"><b>Resumo por local</b><div class="scroll"><table id="tLoc"></table></div></div>
     </div>
-    <div class="card"><b>Partos previstos por mês</b>
-      <div class="scroll"><table id="tMes"></table></div></div>
     <div class="card"><b>Animais</b> <span class="note" id="tAniNote"></span>
       <div class="scroll"><table id="tAni"></table></div></div>
   </div>
@@ -256,8 +250,7 @@ function parseSheet(aoa){
       raca: title(g(r,cRaca)) || "—",
       local: title(g(r,cLoc)) || "—",
       dg, pren: dg === "IATF" || dg === "Touro",
-      ig: (dg === "IATF" || dg === "Touro") ? parseIG(g(r,cIg)) : null,
-      parto: null
+      ig: (dg === "IATF" || dg === "Touro") ? parseIG(g(r,cIg)) : null
     });
   }
   if (!out.length) throw new Error("Não encontrei animais na planilha.");
@@ -280,10 +273,7 @@ $("file").onchange = async e => {
 
 // ---------- FILTROS ----------
 const faseDe = x => x <= 3 ? "P1" : x <= 6 ? "P2" : "P3";
-const mesKey = ts => { const d = new Date(ts); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
-const mesLabel = k => { const [y,m]=k.split("-"); return ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][+m-1]+"/"+y.slice(2); };
-const F = { cats:new Set(), sit:"", fase:"", mes:"", loc:"", raca:"", q:"" };
-const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,10); };
+const F = { cats:new Set(), sit:"", fase:"", loc:"", raca:"", q:"" };
 
 function filtered(){
   const q = norm(F.q);
@@ -298,7 +288,6 @@ function filtered(){
       case "N": if (a.dg) return false; break;
     }
     if (F.fase && (!a.pren || a.ig === null || faseDe(a.ig) !== F.fase)) return false;
-    if (F.mes && (!a.parto || mesKey(a.parto) !== F.mes)) return false;
     if (F.loc && a.local !== F.loc) return false;
     if (F.raca && a.raca !== F.raca) return false;
     if (q && !norm(a.brinco).includes(q) && a.id !== F.q.trim()) return false;
@@ -310,7 +299,6 @@ function filterText(){
   if (F.cats.size) p.push("Categorias: " + [...F.cats].join(", "));
   if (F.sit) p.push("Situação: " + sit[F.sit]);
   if (F.fase) p.push("Fase: " + F.fase);
-  if (F.mes) p.push("Parto previsto: " + mesLabel(F.mes));
   if (F.loc) p.push("Local: " + F.loc);
   if (F.raca) p.push("Raça: " + F.raca);
   if (F.q) p.push("Busca: " + F.q);
@@ -334,39 +322,23 @@ function fillSelect(id, label, values){
   $(id).innerHTML = `<option value="">${label}</option>` + values.map(v => `<option>${esc(v)}</option>`).join("");
 }
 function resetFilters(){
-  Object.assign(F, { cats:new Set(), sit:"", fase:"", mes:"", loc:"", raca:"", q:"" });
+  Object.assign(F, { cats:new Set(), sit:"", fase:"", loc:"", raca:"", q:"" });
   $("fSit").value = ""; $("fFase").value = ""; $("fQ").value = "";
   fillSelect("fLoc", "Todos", [...new Set(animais.map(a=>a.local))].sort());
   fillSelect("fRaca", "Todas", [...new Set(animais.map(a=>a.raca))].sort());
-  rebuildMeses(); buildChips();
+  buildChips();
 }
-function rebuildMeses(){
-  const meses = [...new Set(animais.filter(a=>a.parto).map(a=>mesKey(a.parto)))].sort();
-  if (!meses.includes(F.mes)) F.mes = "";
-  $("fMes").innerHTML = '<option value="">Todos</option>' + meses.map(k=>`<option value="${k}">${mesLabel(k)}</option>`).join("");
-  $("fMes").value = F.mes;
-}
-// parto previsto = data da auditoria + (dias de gestação − idade gestacional em meses × 30,4)
-function recompute(){
-  const GD = +$("pGest").value || 283;
-  const base = $("pDate").value ? new Date($("pDate").value + "T12:00:00") : new Date();
-  animais.forEach(a => { a.parto = (a.pren && a.ig !== null) ? base.getTime() + Math.round((GD - a.ig * 30.4) * 86400000) : null; });
-  rebuildMeses();
-}
-[["fSit","sit"],["fFase","fase"],["fMes","mes"],["fLoc","loc"],["fRaca","raca"],["fQ","q"]].forEach(([id,k]) => {
+[["fSit","sit"],["fFase","fase"],["fLoc","loc"],["fRaca","raca"],["fQ","q"]].forEach(([id,k]) => {
   $(id).addEventListener(id === "fQ" ? "input" : "change", e => { F[k] = e.target.value; render(); });
 });
-["pDate","pGest"].forEach(id => $(id).addEventListener("change", () => { recompute(); render(); }));
 $("btnClear").onclick = () => { resetFilters(); render(); };
 
 // ---------- DASHBOARD ----------
-function showDash(list, name, params){
+function showDash(list, name){
   animais = list;
-  $("pDate").value = (params && params.dataAud) || today();
-  $("pGest").value = (params && params.gestDias) || 283;
   $("dash").classList.remove("hide");
   $("srcName").textContent = name ? "Origem: " + name : "";
-  resetFilters(); recompute(); render();
+  resetFilters(); render();
 }
 function stats(list){
   const diag = list.filter(a=>a.dg), pren = diag.filter(a=>a.pren);
@@ -375,14 +347,10 @@ function stats(list){
   const media = igs.length ? igs.reduce((s,x)=>s+x,0)/igs.length : 0;
   const fases = { P1:0, P2:0, P3:0 }, igHist = Array(9).fill(0);
   igs.forEach(x => { fases[faseDe(x)]++; if (x >= 1 && x <= 9) igHist[x-1]++; });
-  const meses = {};
-  pren.filter(a=>a.parto).forEach(a => { const k = mesKey(a.parto); meses[k] = (meses[k]||0)+1; });
   const grp = key => { const m = {}; diag.forEach(a => { const k = a[key] || "—"; const o = m[k] || (m[k] = {i:0,t:0,v:0}); a.pren ? (a.dg==="IATF" ? o.i++ : o.t++) : o.v++; }); return m; };
-  const hoje = Date.now() - 86400000;
-  const proximo = pren.filter(a=>a.parto && a.parto >= hoje).sort((a,b)=>a.parto-b.parto)[0];
   return { total:list.length, diag:diag.length, pren:pren.length, iatf, touro, vaz:diag.length-pren.length,
     taxa: diag.length ? pren.length/diag.length*100 : 0, media, fases, igHist,
-    meses, mk:Object.keys(meses).sort(), cat:grp("cat"), loc:grp("local"), proximo };
+    cat:grp("cat"), loc:grp("local") };
 }
 function stacked(map){
   const names = Object.keys(map).filter(k => map[k].i + map[k].t + map[k].v > 0).sort();
@@ -396,8 +364,6 @@ function makeChart(canvas, kind, s, base, plugins = []){
   const stk = { ...base, scales:{ x:{stacked:true}, y:{stacked:true} } };
   if (kind === "c1") return new Chart(canvas, { type:"doughnut", plugins, options:base,
     data:{ labels:["Prenhe IATF","Prenhe Touro","Vazia"], datasets:[{ data:[s.iatf,s.touro,s.vaz], backgroundColor:["#4c9fe0","#4cc27a","#e06a5a"] }] } });
-  if (kind === "c2") return new Chart(canvas, { type:"bar", plugins, options:noLeg,
-    data:{ labels:s.mk.map(mesLabel), datasets:[{ label:"Partos", data:s.mk.map(k=>s.meses[k]), backgroundColor:"#4c9fe0" }] } });
   if (kind === "c3") return new Chart(canvas, { type:"bar", plugins, options:noLeg,
     data:{ labels:s.igHist.map((_,i)=>(i+1)+(i?" meses":" mês")), datasets:[{ label:"Vacas", data:s.igHist,
       backgroundColor:s.igHist.map((_,i)=> i<3 ? "#e0d041" : i<6 ? "#e0a341" : "#e06a41") }] } });
@@ -424,25 +390,24 @@ function render(){
     ["Animais", s.total], ["Diagnosticadas", s.diag], ["Prenhes", s.pren], ["Vazias", s.vaz],
     ["Taxa de prenhez", s.taxa.toFixed(1)+"%"], ["Prenhe IATF", s.iatf], ["Prenhe Touro", s.touro],
     ["P1 · 1 a 3 meses", s.fases.P1], ["P2 · 4 a 6 meses", s.fases.P2], ["P3 · 7 a 9 meses", s.fases.P3],
-    ["Gestação média", s.media.toFixed(1)+" meses"], ["Próximo parto", s.proximo ? fmt(new Date(s.proximo.parto)) : "—"]
+    ["Gestação média", s.media.toFixed(1)+" meses"]
   ].map(([l,v])=>`<div class="kpi"><span>${l}</span><b>${v}</b></div>`).join("");
 
   Object.values(charts).forEach(c=>c.destroy()); charts = {};
   Chart.defaults.color = "#cfe0d4";
   const base = { responsive:true, maintainAspectRatio:false, animation:false };
-  ["c1","c2","c3","c4","c5"].forEach(k => charts[k] = makeChart($(k), k, s, base));
+  ["c1","c3","c4","c5"].forEach(k => charts[k] = makeChart($(k), k, s, base));
 
   $("tCat").innerHTML = htmlTable(["Categoria",...RES_HEAD.slice(1)], resumo(list,"cat"));
   $("tLoc").innerHTML = htmlTable(["Local",...RES_HEAD.slice(1)], resumo(list,"local"));
-  $("tMes").innerHTML = htmlTable(["Mês","Partos previstos"], s.mk.map(k=>[mesLabel(k), s.meses[k]]));
 
   const rank = a => a.pren ? 0 : a.dg ? 1 : 2;
-  const sorted = [...list].sort((a,b) => rank(a)-rank(b) || (a.parto||0)-(b.parto||0));
+  const sorted = [...list].sort((a,b) => rank(a)-rank(b) || (b.ig||0)-(a.ig||0));
   const LIM = 300;
   $("tAniNote").textContent = sorted.length > LIM ? `(mostrando ${LIM} de ${sorted.length}; use os filtros para refinar)` : "";
   const pill = a => a.dg === "Vazia" ? '<span class="pill p-bad">Vazia</span>' : a.pren ? `<span class="pill p-ok">Prenhe ${a.dg}</span>` : '<span class="pill p-mut">—</span>';
-  $("tAni").innerHTML = "<tr><th>ID</th><th>Brinco</th><th>Categoria</th><th>Raça</th><th>Local</th><th>Diagnóstico</th><th>Gestação (meses)</th><th>Parto previsto</th></tr>" +
-    sorted.slice(0, LIM).map(a=>`<tr><td>${esc(a.id)}</td><td>${esc(a.brinco)}</td><td>${esc(a.cat)}</td><td>${esc(a.raca)}</td><td>${esc(a.local)}</td><td>${pill(a)}</td><td>${a.ig ?? ""}</td><td>${fmt(a.parto ? new Date(a.parto) : null)}</td></tr>`).join("");
+  $("tAni").innerHTML = "<tr><th>ID</th><th>Brinco</th><th>Categoria</th><th>Raça</th><th>Local</th><th>Diagnóstico</th><th>Gestação (meses)</th></tr>" +
+    sorted.slice(0, LIM).map(a=>`<tr><td>${esc(a.id)}</td><td>${esc(a.brinco)}</td><td>${esc(a.cat)}</td><td>${esc(a.raca)}</td><td>${esc(a.local)}</td><td>${pill(a)}</td><td>${a.ig ?? ""}</td></tr>`).join("");
 }
 
 // ---------- FIREBASE ----------
@@ -457,7 +422,7 @@ $("btnSave").onclick = async () => {
     const b = writeBatch(db);
     const n = Math.ceil(animais.length / CHUNK);
     b.set(impRef, { arquivo:fileName, criadoEm:serverTimestamp(), total:s.total, diagnosticadas:s.diag,
-      prenhes:s.pren, vazias:s.vaz, lotes:n, dataAud:$("pDate").value, gestDias:+$("pGest").value || 283 });
+      prenhes:s.pren, vazias:s.vaz, lotes:n });
     for (let i = 0; i < n; i++) {
       const items = animais.slice(i*CHUNK, (i+1)*CHUNK).map(a => ({ i:a.id, b:a.brinco, c:a.cat, r:a.raca, l:a.local, d:a.dg, g:a.ig }));
       b.set(doc(impRef, "lotes", String(i).padStart(3,"0")), { animais:items });
@@ -483,9 +448,9 @@ async function loadHist(){
           const ls = await getDocs(collection(db,"importacoes",d.id,"lotes"));
           const docs = ls.docs.sort((a,b)=>a.id.localeCompare(b.id));
           const list = docs.flatMap(z => z.data().animais.map(a => ({
-            id:a.i, brinco:a.b, cat:a.c, raca:a.r, local:a.l, dg:a.d, pren:a.d==="IATF"||a.d==="Touro", ig:a.g ?? null, parto:null })));
+            id:a.i, brinco:a.b, cat:a.c, raca:a.r, local:a.l, dg:a.d, pren:a.d==="IATF"||a.d==="Touro", ig:a.g ?? null })));
           fileName = x.arquivo || "";
-          showDash(list, fileName, { dataAud:x.dataAud, gestDias:x.gestDias });
+          showDash(list, fileName);
           $("btnPdf").disabled = false; $("btnPdfCat").disabled = false; $("btnSave").disabled = true;
         } catch(e){ alert("Erro ao abrir: " + e.message); }
         bt.disabled = false;
@@ -510,14 +475,14 @@ function chartImgs(list, kinds, wide){
   Chart.defaults.color = prev;
   return out;
 }
-const PDF_TITLES = { c1:"Diagnóstico gestacional", c2:"Partos previstos por mês", c3:"Idade gestacional (meses)", c4:"Prenhez por categoria", c5:"Prenhez por local" };
+const PDF_TITLES = { c1:"Diagnóstico gestacional", c3:"Idade gestacional (meses)", c4:"Prenhez por categoria", c5:"Prenhez por local" };
 const GREEN = [30,110,70];
 
 function kpiTables(pdf, y, s){
   pdf.autoTable({ startY:y, head:[["Animais","Diagnosticadas","Prenhes","Vazias","Taxa de prenhez","Gestação média"]],
     body:[[s.total, s.diag, s.pren, s.vaz, s.taxa.toFixed(1)+"%", s.media.toFixed(1)+" meses"]], headStyles:{ fillColor:GREEN } });
-  pdf.autoTable({ startY:pdf.lastAutoTable.finalY + 3, head:[["Prenhe IATF","Prenhe Touro","P1 (1 a 3 meses)","P2 (4 a 6 meses)","P3 (7 a 9 meses)","Próximo parto"]],
-    body:[[s.iatf, s.touro, s.fases.P1, s.fases.P2, s.fases.P3, s.proximo ? fmt(new Date(s.proximo.parto)) : "—"]], headStyles:{ fillColor:GREEN } });
+  pdf.autoTable({ startY:pdf.lastAutoTable.finalY + 3, head:[["Prenhe IATF","Prenhe Touro","P1 (1 a 3 meses)","P2 (4 a 6 meses)","P3 (7 a 9 meses)"]],
+    body:[[s.iatf, s.touro, s.fases.P1, s.fases.P2, s.fases.P3]], headStyles:{ fillColor:GREEN } });
   return pdf.lastAutoTable.finalY;
 }
 function block(pdf, y, ttl, head, body, extra = {}){
@@ -545,25 +510,20 @@ function addSection(pdf, list, ttl, sub, kinds, first, wide, opts = {}){
   });
   pdf.addPage();
   let y2 = 16;
-  y2 = block(pdf, y2, "Partos previstos por mês — " + ttl, ["Mês","Partos previstos"],
-    s.mk.length ? s.mk.map(k=>[mesLabel(k), s.meses[k]]) : [["Sem datas de parto",""]]);
   if (opts.cat) y2 = block(pdf, y2, "Resumo por categoria", ["Categoria",...RES_HEAD.slice(1)], resumo(list,"cat"));
   y2 = block(pdf, y2, "Resumo por local", ["Local",...RES_HEAD.slice(1)], resumo(list,"local"));
   if (opts.lista) {
-    const pr = list.filter(a=>a.pren).sort((a,b)=>(a.parto||9e15)-(b.parto||9e15));
-    block(pdf, y2, "Animais prenhes (por data de parto) — " + ttl, ["ID","Brinco","Categoria","Local","Diagnóstico","Gestação (meses)","Parto previsto"],
-      pr.map(a=>[a.id, a.brinco, a.cat, a.local, a.dg, a.ig ?? "", fmt(a.parto ? new Date(a.parto) : null)]), { styles:{ fontSize:8 } });
+    const pr = list.filter(a=>a.pren).sort((a,b)=>(b.ig||0)-(a.ig||0));
+    block(pdf, y2, "Animais prenhes — " + ttl, ["ID","Brinco","Categoria","Local","Diagnóstico","Gestação (meses)"],
+      pr.map(a=>[a.id, a.brinco, a.cat, a.local, a.dg, a.ig ?? ""]), { styles:{ fontSize:8 } });
   }
 }
 function pageNumbers(pdf){
   const n = pdf.getNumberOfPages(), W = pdf.internal.pageSize.getWidth(), H = pdf.internal.pageSize.getHeight();
   for (let i = 1; i <= n; i++){ pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(130); pdf.text(`Página ${i}/${n}`, W-14, H-8, { align:"right" }); }
 }
-const subtitle = () => {
-  const d = $("pDate").value ? $("pDate").value.split("-").reverse().join("/") : "";
-  return `${fileName ? "Origem: " + fileName + " · " : ""}Gerado em ${new Date().toLocaleDateString("pt-BR")} · Data da auditoria (base dos partos): ${d} · Gestação: ${$("pGest").value} dias\n${filterText()}`;
-};
-const ALL5 = ["c1","c2","c3","c4","c5"];
+const subtitle = () => `${fileName ? "Origem: " + fileName + " · " : ""}Gerado em ${new Date().toLocaleDateString("pt-BR")}\n${filterText()}`;
+const ALL5 = ["c1","c3","c4","c5"];
 
 $("btnPdf").onclick = () => {
   const list = filtered();
@@ -581,7 +541,7 @@ $("btnPdfCat").onclick = () => {
   addSection(pdf, list, "Compilado Geral", subtitle(), ALL5, true, null, { cat:true, lista });
   // só categorias que têm diagnóstico gestacional (garrotes, bezerros etc. ficam de fora)
   const cats = [...new Set(list.filter(a=>a.dg).map(a=>a.cat))].sort();
-  cats.forEach(c => addSection(pdf, list.filter(a=>a.cat===c), "Categoria: " + c, subtitle(), ["c1","c3","c2"], false, "c2", { lista }));
+  cats.forEach(c => addSection(pdf, list.filter(a=>a.cat===c), "Categoria: " + c, subtitle(), ["c1","c3","c5"], false, "c5", { lista }));
   pageNumbers(pdf);
   pdf.save("compilado-prenhez-por-categoria.pdf");
 };
