@@ -135,7 +135,7 @@ label{font-size:12px;color:var(--mut);display:block;margin-bottom:4px}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, writeBatch, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ====== COLE AQUI A CONFIG DO SEU PROJETO FIREBASE ======
@@ -177,7 +177,6 @@ const GUESS = {
 };
 
 // ---------- AUTH ----------
-let busy = false;
 const msg = (t, ok=false) => { $("loginMsg").textContent = t; $("loginMsg").style.color = ok ? "var(--ok)" : "var(--bad)"; };
 const authErr = e => ({
   "auth/invalid-credential":"E-mail ou senha incorretos.",
@@ -201,16 +200,8 @@ $("btnEmailLogin").onclick = async () => {
   const { email, pass } = creds();
   if (!email || !pass) return msg("Preencha e-mail e senha.");
   if (email !== ALLOWED_EMAIL) return msg("Este e-mail não tem acesso.");
-  busy = true;
-  try {
-    const c = await signInWithEmailAndPassword(auth, email, pass);
-    if (!c.user.emailVerified) {
-      await sendEmailVerification(c.user); await signOut(auth);
-      busy = false; return msg("E-mail ainda não confirmado. Reenviamos o link; clique nele (veja o spam) e entre de novo.");
-    }
-  } catch(e){ busy = false; return msg(authErr(e)); }
-  busy = false;
-  handleUser(auth.currentUser);
+  try { await signInWithEmailAndPassword(auth, email, pass); }
+  catch(e){ msg(authErr(e)); }
 };
 $("btnSignup").onclick = async () => {
   msg("");
@@ -218,14 +209,8 @@ $("btnSignup").onclick = async () => {
   if (!email || !pass) return msg("Preencha e-mail e senha.");
   if (email !== ALLOWED_EMAIL) return msg("Este e-mail não tem acesso.");
   if (pass.length < 6) return msg("A senha precisa ter pelo menos 6 caracteres.");
-  busy = true;
-  try {
-    const c = await createUserWithEmailAndPassword(auth, email, pass);
-    await sendEmailVerification(c.user);
-    await signOut(auth);
-    msg("Conta criada. Enviamos um link de confirmação para " + email + ". Clique nele (veja o spam) e depois entre.", true);
-  } catch(e){ msg(authErr(e)); }
-  busy = false;
+  try { await createUserWithEmailAndPassword(auth, email, pass); }
+  catch(e){ msg(authErr(e)); }
 };
 $("btnReset").onclick = async () => {
   msg("");
@@ -237,19 +222,15 @@ $("btnReset").onclick = async () => {
 $("btnOut").onclick = () => signOut(auth);
 
 async function handleUser(u){
-  if (u && u.email === ALLOWED_EMAIL && u.emailVerified) {
+  if (u && u.email === ALLOWED_EMAIL) {
     $("login").classList.add("hide"); $("app").classList.remove("hide");
     loadHist();
   } else {
-    if (u) {
-      const unverified = u.email === ALLOWED_EMAIL && !u.emailVerified;
-      await signOut(auth);
-      msg(unverified ? "Confirme seu e-mail pelo link que enviamos e entre de novo." : "Este e-mail não tem acesso.");
-    }
+    if (u) { await signOut(auth); msg("Este e-mail não tem acesso."); }
     $("login").classList.remove("hide"); $("app").classList.add("hide");
   }
 }
-onAuthStateChanged(auth, u => { if (!busy) handleUser(u); });
+onAuthStateChanged(auth, handleUser);
 
 // ---------- IMPORTAR ----------
 $("btnImport").onclick = () => $("file").click();
